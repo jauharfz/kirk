@@ -14,6 +14,8 @@ import (
 
 type apiConfig struct {
 	fileServerHits atomic.Int32
+	db             *database.Queries
+	platform       string
 }
 
 func main() {
@@ -31,7 +33,10 @@ func main() {
 	if err != nil {
 		log.Printf("failed to connect databases %v", err)
 	}
-	_ = database.New(db)
+	apiCfg.platform = os.Getenv("PLATFORM")
+
+	repo := database.New(db)
+	apiCfg.db = repo
 
 	mux := http.NewServeMux()
 	fsHandler := http.StripPrefix("/app", http.FileServer(http.Dir(filePathRoot)))
@@ -41,6 +46,7 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidateChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.handlerUsers)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
