@@ -9,3 +9,11 @@ INSERT INTO chirp(
 	$2
 )
 RETURNING *;
+
+-- name: GetAllChirps :many
+SELECT * FROM chirp 
+ORDER BY created_at ASC;
+
+-- name: GetChirpsById :one
+SELECT * FROM chirp
+WHERE id = $1;

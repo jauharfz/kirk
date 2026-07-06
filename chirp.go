@@ -33,9 +33,37 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	}
 
 	chirp.Body, _ = validateChirp(chirp.Body)
-	cfg.db.CreateChirp(ctx, database.CreateChirpParams{Body: chirp.Body, UserID: chirp.UserID})
+	chirpReq, _ := cfg.db.CreateChirp(ctx, database.CreateChirpParams{Body: chirp.Body, UserID: chirp.UserID})
 
-	cfg.respondWithJSON(w, 201, chirp)
+	cfg.respondWithJSON(w, 201, Chirp(chirpReq))
+}
+
+func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	chirps, _ := cfg.db.GetAllChirps(ctx)
+	chirpRes := make([]Chirp, len(chirps))
+	for idx := range chirps {
+		chirpRes[idx] = Chirp(chirps[idx])
+	}
+
+	_ = cfg.respondWithJSON(w, 200, chirpRes)
+}
+
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+
+	chirp, err := cfg.db.GetChirpsById(ctx, id)
+	if err != nil {
+		cfg.respondWithError(w, 404, "failed to get chirps id")
+	}
+
+	_ = cfg.respondWithJSON(w, 200, Chirp(chirp))
 }
 
 func validateChirp(body string) (string, error) {
