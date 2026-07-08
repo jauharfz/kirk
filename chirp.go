@@ -76,6 +76,34 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 	_ = cfg.respondWithJSON(w, 200, Chirp(chirp))
 }
 
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	idStr := r.PathValue("id")
+	chirpId, _ := uuid.Parse(idStr)
+
+	userID, err := verifyIds(r.Header, cfg.secret)
+	if err != nil {
+		cfg.respondWithError(w, 401, fmt.Sprintf("failed to verify token %v", err))
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpsById(ctx, chirpId)
+	if err != nil {
+		cfg.respondWithError(w, http.StatusNotFound, fmt.Sprintf("failed to get chirp by id %v", err))
+		return
+	}
+	if chirp.UserID != userID {
+		cfg.respondWithError(w, http.StatusForbidden, "failed to delete chirp")
+		return
+	}
+	_ = cfg.db.DeleteChirpById(ctx, database.DeleteChirpByIdParams{UserID: chirp.UserID, ID: chirp.ID})
+
+	cfg.respondWithJSON(w, http.StatusNoContent, "")
+
+}
+
 func validateChirp(body string) (string, error) {
 	if len(body) > 1000 {
 		return "", errors.New("body string is too long")
