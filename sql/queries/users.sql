@@ -13,3 +13,9 @@ RETURNING *;
 -- name: GetUsersByEmail :one
 SELECT * FROM users
 WHERE email = $1;
+
+-- name: UpdateUserEmailAndPwd :one
+UPDATE users
+SET email = $1, password = $2
+WHERE id = $3
+RETURNING *;

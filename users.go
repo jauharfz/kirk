@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,12 +13,11 @@ import (
 )
 
 type User struct {
-	ID               uuid.UUID `json:"id"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	Email            string    `json:"email"`
-	Password         string    `json:"password"`
-	ExpiresInSeconds int32     `json:"expires_in_seconds,omitempty"`
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+	Password  string    `json:"password"`
 }
 
 func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, r *http.Request) {
@@ -45,26 +45,62 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		cfg.respondWithError(w, 401, "email or password didn't match")
 	}
-	if userDb.ExpiresInSeconds > 3600 || userDb.ExpiresInSeconds <= 0 {
-		userDb.ExpiresInSeconds = 3600
-	}
-	token, _ := auth.MakeJWT(userDb.ID, cfg.secret, time.Duration(userDb.ExpiresInSeconds))
+	token, _ := auth.MakeJWT(userDb.ID, cfg.secret, time.Duration(3600))
+	refreshToken := auth.MakeRefreshToken()
 	userReq = User(userDb)
+
+	_ = cfg.db.InsertRefreshToken(ctx, database.InsertRefreshTokenParams{Token: refreshToken, UserID: userReq.ID, ExpiresAt: time.Now().Add(60 * 24 * time.Second)})
+
 	response := struct {
-		ID               uuid.UUID `json:"id"`
-		CreatedAt        time.Time `json:"created_at"`
-		UpdatedAt        time.Time `json:"updated_at"`
-		Email            string    `json:"email"`
-		ExpiresInSeconds int32     `json:"expires_in_seconds,omitempty"`
-		Token            string    `json:"token"`
+		ID           uuid.UUID `json:"id"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Email        string    `json:"email"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
 	}{
-		ID:               userReq.ID,
-		CreatedAt:        userReq.CreatedAt,
-		UpdatedAt:        userReq.UpdatedAt,
-		Email:            userReq.Email,
-		ExpiresInSeconds: userReq.ExpiresInSeconds,
-		Token:            token,
+		ID:           userReq.ID,
+		CreatedAt:    userReq.CreatedAt,
+		UpdatedAt:    userReq.UpdatedAt,
+		Email:        userReq.Email,
+		Token:        token,
+		RefreshToken: refreshToken,
 	}
 
 	_ = cfg.respondWithJSON(w, http.StatusOK, response)
+}
+
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var newUser User
+	err := json.NewDecoder(r.Body).Decode(&newUser)
+	if err != nil {
+		cfg.respondWithError(w, 400, fmt.Sprintf("cannot decode json request from client %v", err))
+		return
+	}
+	userID, err := verifyIds(r.Header, cfg.secret)
+	if err != nil {
+		cfg.respondWithError(w, 401, fmt.Sprintf("failed to verify token %v", err))
+		return
+	}
+
+	password, _ := auth.HashPassword(newUser.Password)
+
+	user, _ := cfg.db.UpdateUserEmailAndPwd(ctx, database.UpdateUserEmailAndPwdParams{Email: newUser.Email, Password: password, ID: userID})
+
+	response := struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	cfg.respondWithJSON(w, http.StatusOK, response)
 }

@@ -32,7 +32,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 		cfg.respondWithError(w, 400, fmt.Sprintf("cannot decode json request from client %v", err))
 		return
 	}
-	userID, err := verifyIds(r.Header, cfg.secret, chirp.UserID)
+	userID, err := verifyIds(r.Header, cfg.secret)
 	if err != nil {
 		cfg.respondWithError(w, 401, fmt.Sprintf("failed to verify token %v", err))
 		return
@@ -100,7 +100,7 @@ func getCleanedBody(body string, badWords map[string]struct{}) string {
 	return strings.Join(splitBody, " ")
 }
 
-func verifyIds(header http.Header, tokenSecret string, userID uuid.UUID) (uuid.UUID, error) {
+func verifyIds(header http.Header, tokenSecret string) (uuid.UUID, error) {
 	token, err := auth.GetBearerToken(header)
 	if err != nil {
 		return uuid.Nil, err
