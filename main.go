@@ -16,6 +16,7 @@ type apiConfig struct {
 	fileServerHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	secret         string
 }
 
 func main() {
@@ -34,6 +35,7 @@ func main() {
 		log.Printf("failed to connect databases %v", err)
 	}
 	apiCfg.platform = os.Getenv("PLATFORM")
+	apiCfg.secret = os.Getenv("SECRET")
 
 	repo := database.New(db)
 	apiCfg.db = repo

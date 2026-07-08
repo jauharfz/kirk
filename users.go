@@ -12,11 +12,12 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Password  string    `json:"password"`
+	ID               uuid.UUID `json:"id"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	Email            string    `json:"email"`
+	Password         string    `json:"password"`
+	ExpiresInSeconds int32     `json:"expires_in_seconds,omitempty"`
 }
 
 func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, r *http.Request) {
@@ -44,8 +45,26 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		cfg.respondWithError(w, 401, "email or password didn't match")
 	}
+	if userDb.ExpiresInSeconds > 3600 || userDb.ExpiresInSeconds <= 0 {
+		userDb.ExpiresInSeconds = 3600
+	}
+	token, _ := auth.MakeJWT(userDb.ID, cfg.secret, time.Duration(userDb.ExpiresInSeconds))
 	userReq = User(userDb)
-	userReq.Password = ""
+	response := struct {
+		ID               uuid.UUID `json:"id"`
+		CreatedAt        time.Time `json:"created_at"`
+		UpdatedAt        time.Time `json:"updated_at"`
+		Email            string    `json:"email"`
+		ExpiresInSeconds int32     `json:"expires_in_seconds,omitempty"`
+		Token            string    `json:"token"`
+	}{
+		ID:               userReq.ID,
+		CreatedAt:        userReq.CreatedAt,
+		UpdatedAt:        userReq.UpdatedAt,
+		Email:            userReq.Email,
+		ExpiresInSeconds: userReq.ExpiresInSeconds,
+		Token:            token,
+	}
 
-	_ = cfg.respondWithJSON(w, http.StatusOK, userReq)
+	_ = cfg.respondWithJSON(w, http.StatusOK, response)
 }

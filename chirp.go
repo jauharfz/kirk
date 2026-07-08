@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jauharfz/GO-CHRPY/internal/auth"
 	"github.com/jauharfz/GO-CHRPY/internal/database"
 )
 
@@ -31,9 +32,18 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 		cfg.respondWithError(w, 400, fmt.Sprintf("cannot decode json request from client %v", err))
 		return
 	}
+	userID, err := verifyIds(r.Header, cfg.secret, chirp.UserID)
+	if err != nil {
+		cfg.respondWithError(w, 401, fmt.Sprintf("failed to verify token %v", err))
+		return
+	}
 
-	chirp.Body, _ = validateChirp(chirp.Body)
-	chirpReq, _ := cfg.db.CreateChirp(ctx, database.CreateChirpParams{Body: chirp.Body, UserID: chirp.UserID})
+	chirp.Body, err = validateChirp(chirp.Body)
+	if err != nil {
+		cfg.respondWithError(w, 400, "failed to validate chirp body")
+		return
+	}
+	chirpReq, _ := cfg.db.CreateChirp(ctx, database.CreateChirpParams{Body: chirp.Body, UserID: userID})
 
 	cfg.respondWithJSON(w, 201, Chirp(chirpReq))
 }
@@ -67,7 +77,7 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func validateChirp(body string) (string, error) {
-	if len(body) > 100 {
+	if len(body) > 1000 {
 		return "", errors.New("body string is too long")
 	}
 	badWords := map[string]struct{}{
@@ -88,4 +98,12 @@ func getCleanedBody(body string, badWords map[string]struct{}) string {
 		}
 	}
 	return strings.Join(splitBody, " ")
+}
+
+func verifyIds(header http.Header, tokenSecret string, userID uuid.UUID) (uuid.UUID, error) {
+	token, err := auth.GetBearerToken(header)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return auth.VerifyJWT(token, tokenSecret)
 }

@@ -19,7 +19,7 @@ INSERT INTO users (
 	$1,
 	$2
 )
-RETURNING id, created_at, updated_at, email, password
+RETURNING id, created_at, updated_at, email, password, expires_in_seconds
 `
 
 type CreateUserParams struct {
@@ -36,12 +36,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.Email,
 		&i.Password,
+		&i.ExpiresInSeconds,
 	)
 	return i, err
 }
 
 const getUsersByEmail = `-- name: GetUsersByEmail :one
-SELECT id, created_at, updated_at, email, password FROM users
+SELECT id, created_at, updated_at, email, password, expires_in_seconds FROM users
 WHERE email = $1
 `
 
@@ -54,6 +55,7 @@ func (q *Queries) GetUsersByEmail(ctx context.Context, email string) (User, erro
 		&i.UpdatedAt,
 		&i.Email,
 		&i.Password,
+		&i.ExpiresInSeconds,
 	)
 	return i, err
 }
