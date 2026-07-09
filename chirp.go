@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -52,7 +53,27 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	chirps, _ := cfg.db.GetAllChirps(ctx)
+	var chirps []database.Chirp
+
+	s := r.URL.Query().Get("author_id")
+	if s == "" {
+		chirps, _ = cfg.db.GetAllChirps(ctx)
+	} else {
+		userID, err := uuid.Parse(s)
+		if err != nil {
+			cfg.respondWithError(w, http.StatusNotFound, fmt.Sprintf("invalid query param %v", err))
+			return
+		}
+		chirps, _ = cfg.db.GetChirpByUserId(ctx, userID)
+	}
+
+	s = r.URL.Query().Get("sort")
+	if s == "desc" {
+		sort.SliceStable(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
+	}
+
 	chirpRes := make([]Chirp, len(chirps))
 	for idx := range chirps {
 		chirpRes[idx] = Chirp(chirps[idx])

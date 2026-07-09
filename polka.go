@@ -8,12 +8,18 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jauharfz/GO-CHRPY/internal/auth"
 	"github.com/jauharfz/GO-CHRPY/internal/database"
 )
 
 func (cfg *apiConfig) handlerPolkaWebhooks(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+
+	apiKey, _ := auth.GetApiKey(r.Header)
+	if apiKey != cfg.polkaKey {
+		cfg.respondWithError(w, http.StatusUnauthorized, "invalid headers")
+	}
 
 	var request struct {
 		Event string `json:"event"`
